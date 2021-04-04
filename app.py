@@ -1,64 +1,43 @@
-#
-# Flask web app to run scrapy spider from web interface
-#
+from flask import Flask, render_template, request, jsonify, make_response, json
+from pusher import pusher
 
-# packages
-from flask import Flask
-from flask import render_template
-from flask import request
-import json
-import subprocess
-
-# create app instance
 app = Flask(__name__)
 
-# base route
-@app.route('/')
-def home():
-    return render_template('scraper.html')
-    
-# run scraper route
-@app.route('/run', methods=['POST'])
-def run():
-    # extract user input parameters
-    category = request.form.get('category')
-    
-    # settings content
-    settings = ''
-    
-    # open settings file
-    with open('settings.json', 'r') as f:
-        for line in f.read():
-            settings += line
-    
-    # parse settings
-    settings = json.loads(settings)
-    
-    # update settings
-    settings['category'] = category
-    
-    # write scraper settings
-    with open('settings.json', 'w') as f:
-        f.write(json.dumps(settings, indent=4))
-    
-    # run scraper
-    process = subprocess.Popen('python3 scraper.py', shell=True)
-    process.wait()
-    
-    # output content
-    output = ''
-    
-    # load scraper output
-    with open('wellness.jsonl', 'r') as f:
-        for line in f.read():
-            output += line
-    
-    # parse content
-    output = [json.loads(item + '\n}') for item in output.split('}\n')[0:-1]]
-    
-    return {'data': output}
+pusher = pusher_client = pusher.Pusher(
+  app_id='PUSHER_APP_ID',
+  key='PUSHER_APP_KEY',
+  secret='PUSHER_APP_SECRET',
+  cluster='PUSHER_APP_CLUSTER',
+  ssl=True
+)
 
-# main driver
+name = ''
+
+@app.route('/')
+def index():
+  return render_template('index.html')
+
+@app.route('/play')
+def play():
+  global name
+  name = request.args.get('username')
+  return render_template('play.html')
+
+@app.route("/pusher/auth", methods=['POST'])
+def pusher_authentication():
+  auth = pusher.authenticate(
+    channel=request.form['channel_name'],
+    socket_id=request.form['socket_id'],
+    custom_data={
+      u'user_id': name,
+      u'user_info': {
+        u'role': u'player'
+      }
+    }
+  )
+  return json.dumps(auth)
+
 if __name__ == '__main__':
-    # run app
-    app.run(debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+name = ''
