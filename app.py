@@ -1,43 +1,97 @@
-from flask import Flask, render_template, request, jsonify, make_response, json
-from pusher import pusher
+####################################
+#
+#         CSV to E-Commerce
+#
+#                by
+#
+#         Code Monkey King
+#
+####################################
 
+# packages
+from flask import *
+import csv
+
+# create app instance
 app = Flask(__name__)
 
-pusher = pusher_client = pusher.Pusher(
-  app_id='PUSHER_APP_ID',
-  key='PUSHER_APP_KEY',
-  secret='PUSHER_APP_SECRET',
-  cluster='PUSHER_APP_CLUSTER',
-  ssl=True
-)
-
-name = ''
-
+# create HTTP route
 @app.route('/')
-def index():
-  return render_template('index.html')
+def root():
+    with open('lulu.csv', 'r') as f:
+        # init dataset
+        data = [dict(item) for item in csv.DictReader(f)]
+        
+        # extract page number
+        try:
+            page = int(request.args.get('page'))
+        
+        except:
+            page = 0
+        
+        # display items per page
+        items_per_page = 5;
+        
+        # starting index
+        index_from = 0;
 
-@app.route('/play')
-def play():
-  global name
-  name = request.args.get('username')
-  return render_template('play.html')
+        # calculate starting index
+        for index in range(page - 1): index_from += items_per_page
+        
+        # ending index
+        index_to = index_from + items_per_page;
+        
+        # init total pages
+        total_pages = range(int(len(data) / items_per_page) + 1)
+                
+        # render content
+        return render_template_string('''
+          <html>
+            <head>
+              <title>Rana Bondo Grocery Store </title>
+              <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"/>
+            </head>
+            <body>
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="text-center">Rana Bondo Grocery store</h2>
+                </div>
+              </div>
+              <div class="container mt-4">
+                {% for item in data %}
+                  <div class="card mt-4">
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-10">
+                          <h4>{{item.title}}</h4>
+                          <p><strong>{{item.price}}</strong></p>
+                          <span>{{item.Brand}}</span>
+                          <span>{{item.Content}}</span>
+                          <span>{{item.Type}}</span>
+                        </div>
+                        <div class="col-2">
+                          <img src="{{item.thumbnail_url}}">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+                
+                <div class="text-center">
+                  {% for page in total_pages %}
+                    {% if request.args.get('page') == str(page + 1) or (request.args.get('page') == none and page == 0) %}
+                      <a href="{{str(request.url).split('?')[0] + '?page=' + str(page + 1)}}" class="btn btn-primary mt-4 mb-3">{{page + 1}}</a>
+                    {% else %}
+                      <a href="{{str(request.url).split('?')[0] + '?page=' + str(page + 1)}}" class="btn btn-outline-primary mt-4 mb-3">{{page + 1}}</a>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+          
+            </body>
+          </html>
+        ''', data=data[index_from:index_to], total_pages=total_pages, str=str)
 
-@app.route("/pusher/auth", methods=['POST'])
-def pusher_authentication():
-  auth = pusher.authenticate(
-    channel=request.form['channel_name'],
-    socket_id=request.form['socket_id'],
-    custom_data={
-      u'user_id': name,
-      u'user_info': {
-        u'role': u'player'
-      }
-    }
-  )
-  return json.dumps(auth)
-
+# main driver
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
-name = ''
+    app.run(debug=True, threaded=True)
